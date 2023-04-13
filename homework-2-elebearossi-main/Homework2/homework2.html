@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<body>
+<button class="button-32" id="animation">Start animation</button>
+<div class="column">
+<div>
+    <br>
+    <br>
+    <br>
+    <br>
+    <br>
+<button class="button-74" id="Button3">Increase R</button>
+</div>
+<div>
+    <br>
+    <br>
+<button class="button-74" id="Button4">Decrease R</button>
+</div>
+<div>
+    <br>
+    <br>
+<button class="button-74" id="Button5">Increase theta</button>
+</div>
+<div>
+    <br>
+    <br>
+<button class="button-74" id="Button6">Decrease theta</button>
+</div>
+<div>
+    <br>
+    <br>
+<button class="button-74" id="Button7">Increase phi</button>
+</div>
+<div>
+    <br>
+    <br>
+<button class="button-74" id="Button8">Decrease phi</button>
+</div>
+</div>
+
+<div>
+<canvas  id="gl-canvas" width="512"" height="512"> </canvas>
+</div>
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+#version 300 es
+
+in vec4 aPosition;
+uniform mat4 uModelViewMatrix;
+uniform mat4 uProjectionMatrix;
+out vec2 vTexCoord;
+in vec2 aTexCoord;
+
+out vec3 L; /* light vector in texture-space coordinates */
+out vec3 V; /* view vector in texture-space coordinates */
+
+uniform vec4 uNormal;
+uniform vec4 uLightPosition;
+uniform mat3 uNormalMatrix;
+uniform vec3 uObjTangent; /* tangent vector in object coordinates */
+
+void main()
+{   
+     mat4 scale = mat4(0.2,0,0,0,
+                        0,0.2,0,0,
+                       0,0,0.2,0,
+                       0,0,0,0.6);
+
+    
+    // BUMP
+    vTexCoord = aTexCoord;
+    gl_Position =  uProjectionMatrix * scale * uModelViewMatrix*(aPosition);
+
+    vec3 eyePosition = (uModelViewMatrix*aPosition).xyz;
+    vec3 eyeLightPos = (uModelViewMatrix*uLightPosition).xyz;
+    /* normal, tangent and binormal in eye coordinates */
+
+    vec3 N = normalize(uNormalMatrix*uNormal.xyz);
+    vec3 T  = normalize(uNormalMatrix*uObjTangent);
+    vec3 B = cross(N, T);
+
+    /* light vector in texture space */
+
+    L.x = dot(T, eyeLightPos-eyePosition);
+    L.y = dot(B, eyeLightPos-eyePosition);
+    L.z = dot(N, eyeLightPos-eyePosition);
+
+    L = normalize(L);
+
+    /* view vector in texture space */
+
+    V.x = dot(T, -eyePosition);
+    V.y = dot(B, -eyePosition);
+    V.z = dot(N, -eyePosition);
+
+    V = normalize(V);
+   
+}
+</script>
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+#version 300 es
+
+precision mediump float;
+in vec2 vTexCoord;
+in vec4 vColor;
+uniform sampler2D uTex;
+out vec4 fColor;
+uniform int ChooseTexture;
+in vec3 L;
+in vec3 V;
+uniform vec4 uDiffuseProduct;
+uniform vec4 uColor;
+
+void main()
+{
+
+    //BUMP
+    vec4 N = texture(uTex, vTexCoord);
+    vec3 NN =  normalize(2.0*N.xyz-1.0);
+    vec3 LL = normalize(L);
+    float Kd = max(dot(NN, LL), 0.0);
+    vec4 ambient = vec4(0.5, 0.2, 0.3, 1.0)*vec4(0.6, 0.1, 0.1, 1.0);
+   
+   if(ChooseTexture == 1){
+        fColor = vec4(0.6, 0.4, 0.3, 1.0);
+    }
+   else if(ChooseTexture == 2){
+        fColor = N;
+    }
+    else if(ChooseTexture == 3){
+      //  fColor = vec4(Kd*uDiffuseProduct.xyz, 1.0);
+      fColor = ambient + vec4(Kd*uDiffuseProduct.xyz, 1.0);
+
+    }
+    else if(ChooseTexture == 4){
+        fColor =vec4(Kd*uDiffuseProduct.xyz, 1.0)+vec4(0.7, 0.5, 0.4, 0.9);
+    }
+    else if(ChooseTexture == 5){
+        fColor = N*uColor;
+    }
+   
+    
+    
+    
+}
+</script>
+
+
+<script src="../Common/InitShaders.js"></script>
+<script src="../Common/MVnew.js"></script>
+<script src="homework2.js"></script>
+
+</body>
+</html>
+<!-- HTML !-->
+
+<style>
+.button-32 {
+  background-color: #fff000;
+  border-radius: 12px;
+  color: #000;
+  cursor: pointer;
+  font-weight: bold;
+  padding: 10px 15px;
+  text-align: center;
+  transition: 200ms;
+  width: 42%;
+  box-sizing: border-box;
+  border: 0;
+  font-size: 16px;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.button-32:not(:disabled):hover,
+.button-32:not(:disabled):focus {
+  outline: 0;
+  background: #d1c709;
+  box-shadow: 0 0 0 2px rgba(0,0,0,.2), 0 3px 8px 0 rgba(0,0,0,.15);
+}
+
+.button-32:disabled {
+  filter: saturate(0.2) opacity(0.5);
+  -webkit-filter: saturate(0.2) opacity(0.5);
+  cursor: not-allowed;
+}
+
+.column {
+ float: right;
+ width: 55%;
+}
+
+
+
+
+.button-74 {
+  background-color: #fbeee0;
+  border: 2px solid #422800;
+  border-radius: 8px;
+  box-shadow: #422800 4px 4px 0 0;
+  color: #422800;
+  cursor: pointer;
+  display: inline-block;
+  font-weight: 600;
+  font-size: 10px;
+  padding: 0 15px;
+  line-height: 30px;
+  text-align: center;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+.button-74:hover {
+  background-color: #fff;
+}
+
+.button-74:active {
+  box-shadow: #422800 2px 2px 0 0;
+  transform: translate(2px, 2px);
+}
+
+@media (min-width: 768px) {
+  .button-74 {
+    min-width: 120px;
+    padding: 0 25px;
+  }
+}
+</style>
