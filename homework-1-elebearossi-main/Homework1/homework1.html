@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html>
+
+
+<body>
+
+
+<script id="vertex-shader" type="x-shader/x-vertex">
+    #version 300 es
+    
+    in  vec4 aPosition;
+    in  vec4 aColor;
+    in vec3 aNormal;
+    out vec4 vColor;
+    
+    uniform vec3 uTheta;
+    uniform mat4 uModelViewMatrix;
+    uniform mat4 uProjectionMatrix;
+    uniform mat3 uNormalMatrix;
+   
+    // TEXTURE
+    in vec2 aTexCoord;
+    out vec2 vTexCoord;
+
+    // SPOTLIGHT
+    out vec3 N, L, E;
+    uniform vec4 uLightPosition;
+    uniform vec4 uSpotlightDirection;
+
+    uniform bool changeShading;
+    vec4 Ki, Ks;
+
+    //fragment-shader
+    
+        
+
+        //TEXTURE
+        uniform mediump sampler2D uTextureMap;
+        uniform mediump float turnOn;
+        uniform mediump sampler2D uBlurEffect;
+
+
+        //SPOTLIGHT
+        uniform mediump vec4 A;
+        uniform mediump float uConstantAttenuation; 
+        float lightDistance; 
+        float attenuation; 
+        uniform mediump float off;
+        
+
+        uniform mediump vec4 uAmbientProductSpotlight;
+        uniform mediump vec4 uDiffuseProductSpotlight;
+        uniform mediump vec4 uSpotSpecularProduct;
+        uniform mediump vec4 uMaterialDiffuse;
+        uniform mediump vec4 uMaterialAmbient;
+        uniform mediump float spotLightCutOff;
+        uniform mediump float spotLightAngle;
+
+        uniform float uDrawOffset;
+        mediump vec4 fColor;
+        uniform float blur;
+
+        
+
+    
+
+
+    void main()
+    {
+        // Compute the sines and cosines of theta for each of
+        //   the three axes in one computation.
+        vec3 angles = radians(uTheta);
+        vec3 c = cos(angles);
+        vec3 s = sin(angles);
+        
+        // Remeber: thse matrices are column-major
+        mat4 rx = mat4(1.0,  0.0,  0.0, 0.0,
+                0.0,  c.x,  s.x, 0.0,
+                0.0, -s.x,  c.x, 0.0,
+                0.0,0,0, 1.0); 
+    
+        mat4 ry = mat4(c.y, 0.0, -s.y, 0.0,
+                0.0, 1.0,  0.0, 0.0,
+                s.y, 0.0,  c.y, 0.0,
+                0,0.0,0, 1.0);
+    
+    
+        mat4 rz = mat4(c.z, s.z, 0.0, 0.0,
+                -s.z,  c.z, 0.0, 0.0,
+                0.0,  0.0, 1.0, 0.0,
+                0,0,0.0, 1.0);
+
+        mat4 tras = mat4(1,0,0,0,
+                    0,1,0,0,
+                    0,0,1,0,
+                    -0.6,-0.05,0.35,1);
+
+        mat4 trasI = mat4(1,0,0,0,
+                    0,1,0,0,
+                    0,0,1,0,
+                    0.6,0.05,-0.35,1);
+
+        mat4 scale = mat4(0.3,0,0,0,
+                        0,0.3,0,0,
+                        0,0,0.3,0,
+                        0,0,0,1);
+        
+           
+
+        if(blur==0.0){
+        gl_Position = uProjectionMatrix* uModelViewMatrix *(scale * tras * rz *ry * rx *trasI * aPosition );
+        }
+        else{
+            gl_Position = uProjectionMatrix* uModelViewMatrix *(scale * tras * rz *ry * rx *trasI * aPosition );
+  
+        }
+        //gl_Position.z = -gl_Position.z ;
+            // vColor = aColor;
+            // TEXTURE
+            vTexCoord = aTexCoord;
+        vec3 pos = (uModelViewMatrix *(scale*tras * rz *ry * rx  *trasI * aPosition)).xyz;  
+
+        if(!changeShading) {
+
+            
+            N = normalize(uNormalMatrix*aNormal.xyz);
+            E  = normalize(uSpotlightDirection.xyz - pos); 
+            L = normalize(uLightPosition.xyz - pos);
+            
+
+            //attentuation
+            lightDistance = sqrt(pow(L.x,2.0) + pow(L.y,2.0) + pow(L.z,2.0));
+            attenuation = 1.0/(uConstantAttenuation*lightDistance+ 1.0);
+            
+            //cutOff
+            float spotFactor;
+            float spotCosine =  max(dot(E , -L), 0.0); 
+            if (acos(spotCosine) > radians(spotLightAngle)){
+                spotFactor = 0.0;
+            }else{
+                spotFactor = pow(spotCosine,spotLightCutOff) * attenuation;
+            }
+         
+            Ki = Ks = A;
+         
+            //SHADE
+            if (max(dot(L,N),0.0)>=0.5){
+                Ki = (Ki + uDiffuseProductSpotlight + uSpotSpecularProduct )*spotFactor;
+            }else{
+               Ki = Ki*spotFactor;
+            }
+
+            vColor = (Ki+Ks);
+
+            }
+
+            
+        
+        else{
+               
+            N = normalize(uNormalMatrix*aNormal.xyz);
+            E  = normalize(uSpotlightDirection.xyz - pos); 
+            L = normalize(uLightPosition.xyz - pos);
+
+        }
+        
+        
+        
+        
+    }
+     
+    
+
+
+    </script>
+
+
+<script id="fragment-shader" type="x-shader/x-fragment">
+        #version 300 es
+
+        precision mediump float;
+
+        in vec4 vColor;
+        out vec4 fColor;
+
+        //TEXTURE
+        uniform mediump sampler2D uTextureMap;
+        uniform mediump sampler2D uBlurEffect;
+        in vec2 vTexCoord;
+        uniform mediump float turnOn;
+
+
+        //SPOTLIGHT
+        uniform mediump vec4 A;
+        uniform float uConstantAttenuation; 
+        float lightDistance; 
+        float attenuation; 
+        in vec3 N, L, E;
+        uniform mediump float off;
+        uniform mediump float blur;
+
+        
+
+        uniform mediump vec4 uAmbientProductSpotlight;
+        uniform mediump vec4 uDiffuseProductSpotlight;
+        uniform mediump vec4 uSpotSpecularProduct;
+        uniform mediump vec4 uMaterialDiffuse;
+        uniform mediump vec4 uMaterialAmbient;
+        uniform mediump float spotLightCutOff;
+        uniform mediump float spotLightAngle;
+
+        uniform bool changeShading;
+        
+
+      
+
+
+        vec4 Ki, Ks;
+
+        void main()
+        {
+
+        //L DIRECTION VECTOR FROM THE LIGHT SOURCE TO THE VERTEX
+        //E SPOTLIGHT EXPONENT
+        //A ANGLE BETWEEN THE LIGHT SOURCE AND THE VERTEX
+        //N normal 
+
+        
+        if(changeShading){ 
+
+        //attentuation
+        lightDistance = sqrt(pow(L.x,2.0) + pow(L.y,2.0) + pow(L.z,2.0));
+        attenuation = 1.0/(uConstantAttenuation*lightDistance+ 1.0);
+        
+        //
+        float spotFactor;
+        float spotCosine =  max(dot(E , -L), 0.0); 
+        if (acos(spotCosine) > radians(spotLightAngle)){
+            spotFactor = 0.0;
+        }else{
+            spotFactor = pow(spotCosine,spotLightCutOff) * attenuation;
+        }
+     
+        Ki = Ks = A;
+     
+        //SHADE
+        if (max(dot(L,N),0.0)>=0.5){
+            Ki = (Ki + uMaterialDiffuse + uMaterialAmbient)*spotFactor;
+        }else{
+            Ki = Ki*spotFactor;
+        }
+
+       
+       
+        if(turnOn==1.0){
+            if(off==1.0){
+            fColor = (Ki+Ks) * texture(uTextureMap, vTexCoord);
+            }
+            else{
+                fColor = texture(uTextureMap,vTexCoord)*uDiffuseProductSpotlight *uSpotSpecularProduct;
+            }
+        }
+        else{
+            if(off==1.0){
+                fColor = (Ki+Ks)*uDiffuseProductSpotlight *uSpotSpecularProduct;
+                }
+                else{
+                    fColor.a = 1.0;
+                }
+            }
+
+        }
+        else{ 
+
+            if(turnOn==1.0){
+                if(off==1.0){
+                fColor = vColor * texture(uTextureMap, vTexCoord);
+                }
+                else{
+                    fColor = texture(uTextureMap,vTexCoord)*uDiffuseProductSpotlight *uSpotSpecularProduct;
+                }
+            }
+            else{
+                if(off==1.0){
+                    fColor = vColor*uDiffuseProductSpotlight *uSpotSpecularProduct ;
+                    }
+                    else{
+                        fColor.a = 1.0;
+                    }
+                }
+            
+    
+            }
+        
+    
+    
+}
+</script>
+
+  
+
+  <div class="row">
+      <div class="column">
+    <canvas id="gl-canvas" width="512" height="600" > </canvas>
+
+</div><!--1 column-->
+
+<!--SPOTLIGHT-->
+
+<h3> SpotLight Manipulation </h3>
+<button id= "EnableSpotLight"class="Mybutton">Enable/Disable SpotLight</button>
+<div>
+Spotlight: cut off
+1<input id="spotLightCutOff" type="range"
+min="1" max="80" step="10" value ="50.0" />80
+
+</div>
+<div>
+Spotlight: angle
+0<input id="spotAngle" type="range"
+min="8" max="15" step="0.1" value ="10" />80
+</div>
+
+<div>
+ X Direction
+-1<input id="xDirection" type="range"
+min="-1" max="1" step="0.05" value="0" />1
+</div>
+<div>
+Y Direction
+-1<input id="yDirection" type="range"
+min="-1" max="1" step="0.05" value="0" />1
+</div>
+<div>
+Z Direction
+-10<input id="zDirection" type="range"
+min="-10" max="0" step="0.05" value="-5" />0        
+</div>
+<div>
+
+     <!--ROTATION-->
+     <h3>Rotation Manipulation</h3>
+     <div>
+    <button id="ButtonT"class="Mybutton">Sart/Stop</button>
+     <button id="xButton"class="Mybutton">Rotate X</button>
+     <button id="yButton"class="Mybutton">Rotate Y</button>
+     <button id="zButton"class="Mybutton">Rotate Z</button>
+     <button id="Direction"class="Mybutton">Direction</button>
+    </div>
+
+   
+<!--TEXTURE--> 
+<div class="comuln">
+<h3>Texture</h3>
+    <button id= "EnableTexture"class="Mybutton">Enable/Disable Texture</button>
+    <!--VIEW AND PROJECTION-->
+<h3> Projection And View Manipulation </h3>
+
+<div>
+<button id="ButtonZZ"class="Mybutton">Increase Z</button>
+<button id="ButtonZ"class="Mybutton">Decrease Z</button>
+</div>
+    <div>
+    radius
+    1
+    <input id="radiusSlider" type="range" min="1" max="10" step="0.1" value="3.5" />
+    10
+    </div>
+    <div>
+    phi 
+    -90
+    <input id="phiSlider" type="range" min="-90" max="90" step="5" value="0.2" />
+    90
+    </div>
+    <div>
+    fov 
+    0
+    <input id="fovSlider" type="range" min="0" max="120" step="5" value="15" />
+    100
+    </div>  
+    <div>
+    aspect 
+    0.5
+    <input id="aspectSlider" type="range" min="0.5" max="2" step="0.1" value="1" />
+    2
+</div>  
+<div>    
+    theta -90<input id="thetaSlider" type="range" min="-90" max="90" step="5" value="-35">
+     90
+    </div>
+    <button id="ShadingButton" class="Mybutton">Change Shading</button>
+<button id= "BlurButton"class="Mybutton">Enable/Disable Blur</button>
+
+
+   
+</div>
+    
+</div><!--second clumn-->
+</div><!--row-->
+
+<script src="../Common/initShaders.js"></script>
+<script src="../Common/MV.js"></script>
+<script src="homework1.js"></script>
+<img id = "texImage" src = "WoodTexture.png"  hidden></img>
+
+</body>
+<!--STILE-->
+<style>
+
+/* Create two equal columns that floats next to each other */
+.column {
+  float: left;
+  width: 50%;
+  
+  
+}
+
+/* Clear floats after the columns */
+.row:after {
+  width: 50%;
+  
+ 
+}
+
+/* CSS */
+.Mybutton {
+  background-color: #cfc5cd;
+  border-radius: 3px;
+  border: 1px solid #a794a4;
+  box-shadow: rgba(255, 255, 255, .7) 0 1px 0 0 inset;
+  box-sizing: border-box;
+  color: #000000;
+  cursor: pointer;
+  display: inline-block;
+  font-family: -apple-system,system-ui,"Segoe UI","Liberation Sans",sans-serif;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.15385;
+  margin: 0;
+  outline: none;
+  padding: 3px;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+.Mybutton:hover,
+.Mybutton:focus {
+  background-color: #c4d4df;
+  color: #525e68;
+}
+
+.Mybutton:focus {
+  box-shadow: 0 0 0 4px rgba(0, 149, 255, .15);
+}
+
+.Mybutton:active {
+  background-color: #a0c7e4;
+  box-shadow: none;
+  color: #2c5777;
+}
+
+
+
+
+</style>
+</html>
